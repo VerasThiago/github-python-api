@@ -1,13 +1,15 @@
-from unicodedata import name
-from django.shortcuts import render
-from django.http import HttpResponse
-from django.core.handlers.wsgi import WSGIRequest
-from .helper import getCommits
+from django.http import JsonResponse
+from rest_framework.views import APIView
+from rest_framework.exceptions import APIException
+from playground.views.commit.helper import isCached
+from playground.models.commit import Commit
+from playground.serializers import commit as srlz
+from .helper import get_commits
 
 
-def GetCommits(request: WSGIRequest):
-    owner = str(request.GET.get("owner"))
-    repo = str(request.GET.get("repo"))
-    token = str(request.GET.get("token"))
+class CommitViewSet(APIView):
+    queryset = Commit.objects.all()
+    serializer_class = srlz.CommitSerializer
 
-    return HttpResponse(getCommits(owner, repo, token))
+    def get(self, request):
+        return get_commits(request)
