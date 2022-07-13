@@ -17,6 +17,4 @@ RUN pip install -r requirements.txt
 
 COPY . /var/app/.
 
-EXPOSE 8080
-
 ENTRYPOINT ["/var/app/entrypoint.sh"]
