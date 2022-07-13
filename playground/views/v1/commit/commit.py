@@ -1,10 +1,7 @@
-from django.http import JsonResponse
 from rest_framework.views import APIView
-from rest_framework.exceptions import APIException
-from playground.views.commit.helper import isCached
 from playground.models.commit import Commit
 from playground.serializers import commit as srlz
-from .helper import get_commits
+from playground.views.v1.commit.utils import get_commits
 
 
 class CommitViewSet(APIView):

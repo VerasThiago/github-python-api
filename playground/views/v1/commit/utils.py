@@ -5,8 +5,10 @@ from playground.serializers import commit as srlz
 from django.http import JsonResponse
 from playground.errors.errors import handle_exception
 
+import json
 
-THRESH_HOLD_SECONDS = 1 * 60
+
+THRESH_HOLD_SECONDS = 1 * 12
 
 
 def getGithubUrl(repo):
@@ -82,8 +84,11 @@ def cacheData(repo, data):
     repo.save()
 
     for commit in data:
-        commit.repo = repo
-        commit.save()
+        try:
+            Commit.objects.get(sha=commit.sha)
+        except Commit.DoesNotExist:
+            commit.repo = repo
+            commit.save()
 
 
 def get_commits(request):
