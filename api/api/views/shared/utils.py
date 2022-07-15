@@ -1,7 +1,8 @@
-import requests
+from api.models.commit import Commit
 from time import sleep
-from tasks.models.commit import Commit
+import requests
 
+CACHE_THRESH_HOLD_SECONDS = 1 * 15
 FAKE_DELAY_TIME = 7
 
 
@@ -9,8 +10,8 @@ def fake_github_deplay_time():
     sleep(FAKE_DELAY_TIME)
 
 
-def get_github_api_url(repo_owner, repo_name):
-    url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/commits"
+def get_github_api_url(repo):
+    url = f"https://api.github.com/repos/{repo.owner}/{repo.name}/commits"
     return url
 
 
@@ -44,24 +45,17 @@ def parse_commit_list_from_git_to_commit_model_list(commitList):
     return commitArray
 
 
-def save_commit_array_db(commit_array, repo):
-    for commit in commit_array:
-        commit.repo = repo
-        try:
-            Commit.objects.get(sha=commit.sha)
-        except Commit.DoesNotExist:
-            commit.repo = repo
-            commit.save()
-
-
-def build_commit_array_from_git_request(repo_owner, repo_name, token):
+def build_commit_array_from_request(repo, token):
     # Just to simulate long github request
     fake_github_deplay_time()
 
-    url = get_github_api_url(repo_owner, repo_name)
+    url = get_github_api_url(repo)
     headers = get_github_api_headers(token)
-
     resp = requests.request("GET", url, headers=headers)
+    commits = parse_commit_list_from_git_to_commit_model_list(resp.json())
+    return commits
 
-    commit_array = parse_commit_list_from_git_to_commit_model_list(resp.json())
-    return commit_array
+
+def build_commit_array_from_db(repo):
+    commits = Commit.objects.filter(repo__name__contains=repo.name)
+    return commits

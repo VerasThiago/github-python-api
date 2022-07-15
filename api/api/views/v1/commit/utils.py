@@ -1,86 +1,29 @@
-import requests
 from api.models.commit import Commit
 from api.models.repo import Repo
-from api.serializers import commit as srlz
+from api.serializers.commit import CommitSerializer
 from django.http import JsonResponse
-from api.errors.errors import handle_exception
 
-import json
-
-
-THRESH_HOLD_SECONDS = 1 * 30
+from api.views.shared.utils import CACHE_THRESH_HOLD_SECONDS, build_commit_array_from_db, build_commit_array_from_request
 
 
-def getGithubUrl(repo):
-    url = f"https://api.github.com/repos/{repo.owner}/{repo.name}/commits"
-    return url
-
-
-def getGithubHeaders(token):
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "Authorization": f"Token {token}",
-    }
-    return headers
-
-
-def parseCommitDataFromRequestToModel(commit):
-    commit = Commit(
-        author=commit["commit"]["author"]["name"],
-        email=commit["commit"]["author"]["email"],
-        date=commit["commit"]["author"]["date"],
-        message=commit["commit"]["message"],
-        sha=commit["commit"]["tree"]["sha"],
-        url=commit["html_url"],
-        comment_count=int(commit["commit"]["comment_count"]),
-    )
-    return commit
-
-
-def parseCommitListDataFromRequestToModel(commitList):
-    commitArray = []
-    for commitRequest in commitList:
-        commitModel = parseCommitDataFromRequestToModel(commitRequest)
-        commitArray.append(commitModel)
-
-    return commitArray
-
-
-def buildCommitArrayFromRequest(repo, token):
-    url = getGithubUrl(repo)
-    headers = getGithubHeaders(token)
-
-    resp = requests.request("GET", url, headers=headers)
-    if resp.status_code != 200:
-        raise Exception(resp.json(), resp.status_code)
-
-    commits = parseCommitListDataFromRequestToModel(resp.json())
-    return commits
-
-
-def buildCommitArrayFromDB(repo):
-    commits = Commit.objects.filter(repo__name__contains=repo.name)
-    return commits
-
-
-def isCached(repo):
+def is_cached(repo):
     repos = Repo.objects.filter(name=repo.name, owner=repo.owner)
     if repos.count() == 0:
         return False, repo
 
     diff = repos.first().get_time_diff()
-    return diff <= THRESH_HOLD_SECONDS, repos.first()
+    return diff <= CACHE_THRESH_HOLD_SECONDS, repos.first()
 
 
-def JSONRsponseWithCache(cache, repo, data):
+def json_response_with_cache(cache, repo, data):
     if not cache:
-        cacheData(repo, data)
+        cache_data(repo, data)
 
-    serializer = srlz.CommitSerializer(data, many=True)
+    serializer = CommitSerializer(data, many=True)
     return JsonResponse({"cached": cache, "data": serializer.data})
 
 
-def cacheData(repo, data):
+def cache_data(repo, data):
     repo.save()
 
     for commit in data:
@@ -97,13 +40,10 @@ def get_commits(request):
     token = str(request.GET.get("token"))
 
     repo = Repo(owner=owner, name=repo_name)
-    cached, repo = isCached(repo)
+    cached, repo = is_cached(repo)
     if cached:
-        data = buildCommitArrayFromDB(repo)
-        return JSONRsponseWithCache(cache=True, repo=repo, data=data)
+        data = build_commit_array_from_db(repo)
+        return json_response_with_cache(cache=True, repo=repo, data=data)
 
-    try:
-        data = buildCommitArrayFromRequest(repo, token)
-        return JSONRsponseWithCache(cache=False, repo=repo, data=data)
-    except Exception as e:
-        return handle_exception(e)
+    data = build_commit_array_from_request(repo, token)
+    return json_response_with_cache(cache=False, repo=repo, data=data)

@@ -1,19 +1,9 @@
-import requests
-from api.models.commit import Commit
 from api.models.repo import Repo
-from api.serializers.repo import RepoSerializer
-from api.serializers.commit import CommitSerializer
 from django.http import JsonResponse
 from server.celery import app
 from api.utils.cache_type import RepoCacheType
-
-THRESH_HOLD_SECONDS = 1 * 30
-
-
-def build_commit_array_from_db(repo):
-    commit_array = Commit.objects.filter(repo__name__contains=repo.name)
-    serializer = CommitSerializer(commit_array, many=True)
-    return serializer.data
+from api.views.shared.utils import CACHE_THRESH_HOLD_SECONDS, build_commit_array_from_db
+from api.serializers.commit import CommitSerializer
 
 
 def repo_cache_status(repo):
@@ -23,17 +13,19 @@ def repo_cache_status(repo):
 
     repo = repos.first()
     cacheTime = repos.first().get_time_diff()
-    if cacheTime <= THRESH_HOLD_SECONDS:
+    if cacheTime <= CACHE_THRESH_HOLD_SECONDS:
         return RepoCacheType.CACHE_HIT, repo
     else:
         return RepoCacheType.CACHE_MISS, repo
 
 
 def json_response_from_db(cache_type, repo):
+    commits = build_commit_array_from_db(repo)
+    serializer = CommitSerializer(commits, many=True)
     return JsonResponse(
         {
             "cache_status": cache_type.name,
-            "data": build_commit_array_from_db(repo),
+            "data": serializer.data,
         }
     )
 
@@ -65,3 +57,9 @@ def get_commits(request):
                 "id": task_result.id,
             }
         )
+    return JsonResponse(
+        {
+            "cache_status": RepoCacheType.UNKNOWN,
+            "id": task_result.id,
+        }
+    )
