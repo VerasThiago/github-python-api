@@ -2,7 +2,7 @@ version: '3.1'
 
 services:
 
-  db:
+  api-database:
     image: postgres
     ports:
       - "5432:5432"
@@ -12,8 +12,8 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
 
-  web:
-    build: .
+  api-service:
+    build: api/.
     ports:
       - "8000:8000"
     environment:
@@ -21,4 +21,17 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     depends_on:
-      - db
+      - api-database
+
+  worker-database:
+    image: redis
+    ports:
+      - 6379:6379
+
+  worker-service:
+    build: worker/.
+    command: bash -c "celery -A worker worker -l info"
+    depends_on:
+     - worker-database
+     - api-database 
+    
